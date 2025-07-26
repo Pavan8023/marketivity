@@ -22,11 +22,11 @@ import {
   resetPassword
 } from '@/services/auth';
 import { useAuthState } from 'react-firebase-hooks/auth';
-import { collection, doc, getDoc, getDocs, query, updateDoc, where } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, query, setDoc, updateDoc, where } from 'firebase/firestore';
 import { browserSessionPersistence, setPersistence, signInWithPopup } from 'firebase/auth';
 import { Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { auth, googleProvider, db } from '@/lib/firebase'; // Make sure to import Firebase config
+import { auth, googleProvider, db } from '@/lib/firebase';
 
 // Updated form schema with wholesaler/vendor roles
 const formSchema = z.object({
@@ -49,6 +49,7 @@ const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [providerModalOpen, setProviderModalOpen] = useState(false);
   const [userRole, setUserRole] = useState<string | null>(null);
+  const [googleUser, setGoogleUser] = useState<any>(null); // Store Google user data
 
   // Forgot password states
   const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false);
@@ -178,6 +179,7 @@ const Login = () => {
       // Sign in with Google
       const result = await signInWithPopup(auth, googleProvider);
       const user = result.user;
+      setGoogleUser(user); // Store Google user data
 
       // Get user role from Firestore
       const userRef = doc(db, 'users', user.uid);
@@ -208,6 +210,46 @@ const Login = () => {
       );
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Handle role selection for Google sign-in
+  const handleGoogleRoleSelection = async (role: 'vendor' | 'wholesaler') => {
+    if (!googleUser) {
+      showErrorNotification("User data not available. Please try again.");
+      return;
+    }
+
+    try {
+      // Create new user document in Firestore
+      const userRef = doc(db, 'users', googleUser.uid);
+      await setDoc(userRef, {
+        uid: googleUser.uid,
+        email: googleUser.email,
+        displayName: googleUser.displayName || 'New User',
+        photoURL: googleUser.photoURL || '',
+        role: role,
+        type: 'google',
+        createdAt: new Date(),
+      });
+
+      setUserRole(role);
+      setProviderModalOpen(false);
+
+      toast({
+        title: "Account created successfully!",
+        description: "Welcome to VendorConnect.",
+      });
+
+      // Redirect based on role
+      if (role === 'wholesaler') {
+        navigate("/wholesaler");
+      } else {
+        navigate("/vendor");
+      }
+    } catch (error: any) {
+      console.error('Error creating user document:', error);
+      showErrorNotification("Failed to create your account. Please try again.");
     }
   };
 
@@ -316,14 +358,9 @@ const Login = () => {
     setCaptchaError('');
   };
 
-  const handleRoleSelection = (role: 'vendor' | 'wholesaler') => {
-    // After selecting role, redirect accordingly
-    if (role === 'wholesaler') {
-      navigate('/wholesaler');
-    } else {
-      navigate('/vendor');
-    }
+  const closeProviderModal = () => {
     setProviderModalOpen(false);
+    setGoogleUser(null);
   };
 
   if (loadingAuth || (user && !userRole)) {
@@ -378,7 +415,7 @@ const Login = () => {
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-bold">Select Your Role</h2>
               <button
-                onClick={() => setProviderModalOpen(false)}
+                onClick={closeProviderModal}
                 className="text-gray-500 hover:text-gray-700"
               >
                 <X className="h-5 w-5" />
@@ -393,7 +430,7 @@ const Login = () => {
               <div className="grid grid-cols-2 gap-4">
                 <Button 
                   className="h-32 flex flex-col items-center justify-center bg-green-50 hover:bg-green-100 border border-green-200"
-                  onClick={() => handleRoleSelection('vendor')}
+                  onClick={() => handleGoogleRoleSelection('vendor')}
                 >
                   <div className="bg-green-100 p-3 rounded-full mb-2">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -406,7 +443,7 @@ const Login = () => {
                 
                 <Button 
                   className="h-32 flex flex-col items-center justify-center bg-blue-50 hover:bg-blue-100 border border-blue-200"
-                  onClick={() => handleRoleSelection('wholesaler')}
+                  onClick={() => handleGoogleRoleSelection('wholesaler')}
                 >
                   <div className="bg-blue-100 p-3 rounded-full mb-2">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -417,6 +454,20 @@ const Login = () => {
                   <p className="text-sm text-gray-500 mt-1">Buy in bulk</p>
                 </Button>
               </div>
+              
+              {googleUser?.photoURL && (
+                <div className="flex items-center justify-center mt-4">
+                  <img 
+                    src={googleUser.photoURL} 
+                    alt="Profile" 
+                    className="w-12 h-12 rounded-full border-2 border-green-300"
+                  />
+                  <div className="ml-3">
+                    <p className="font-medium">{googleUser.displayName || 'User'}</p>
+                    <p className="text-sm text-gray-500">{googleUser.email}</p>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -670,7 +721,7 @@ const Login = () => {
                             onValueChange={field.onChange}
                             defaultValue={field.value}
                             className="flex space-x-4"
-                          >
+                          > 
                             <div className="flex items-center space-x-2">
                               <RadioGroupItem value="vendor" id="login-vendor" className="text-green-600" />
                               <label htmlFor="login-vendor" className="text-sm">Vendor</label>
