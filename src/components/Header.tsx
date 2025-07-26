@@ -37,28 +37,30 @@ export const Header = ({ searchQuery, onSearchChange, cartItems }: HeaderProps) 
         </div>
 
         {/* Right Actions */}
-        <div className="flex items-center space-x-2">
-          {/* Get Started Button - Green variant */}
-          <Button 
-            variant="default" 
-            className="bg-green-600 hover:bg-green-700 hidden md:inline-flex"
+        <div className="flex items-center w-full">
+          <div className="flex items-center space-x-2">
+            {/* Cart with green badge */}
+            <Button variant="outline" size="icon" className="relative">
+              <ShoppingCart className="h-4 w-4" />
+              {cartItems > 0 && (
+                <span className="absolute -top-2 -right-2 h-5 w-5 bg-green-500 text-white rounded-full text-xs flex items-center justify-center">
+                  {cartItems}
+                </span>
+              )}
+            </Button>
+
+            <Button variant="outline" size="icon" className="md:hidden">
+              <Menu className="h-4 w-4" />
+            </Button>
+          </div>
+
+          {/* Get Started Button - Green variant aligned to the far right */}
+          <Button
+            variant="default"
+            className="bg-green-600 hover:bg-green-700 ml-auto hidden md:inline-flex"
             onClick={() => navigate('/login')}
           >
             Get Started
-          </Button>
-          
-          {/* Cart with green badge */}
-          <Button variant="outline" size="icon" className="relative">
-            <ShoppingCart className="h-4 w-4" />
-            {cartItems > 0 && (
-              <span className="absolute -top-2 -right-2 h-5 w-5 bg-green-500 text-white rounded-full text-xs flex items-center justify-center">
-                {cartItems}
-              </span>
-            )}
-          </Button>
-          
-          <Button variant="outline" size="icon" className="md:hidden">
-            <Menu className="h-4 w-4" />
           </Button>
         </div>
       </div>

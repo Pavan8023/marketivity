@@ -1,8 +1,10 @@
+// src/pages/SignUp.tsx
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Header } from '@/components/Header';
+import { Footer } from '@/components/Footer';
 import {
   Form,
   FormControl,
@@ -19,7 +21,6 @@ import * as z from 'zod';
 import { toast } from '@/components/ui/use-toast';
 import { emailSignUp } from '@/services/auth';
 
-// Updated form schema with vendor/wholesaler roles
 const formSchema = z.object({
   name: z.string().min(2, {
     message: "Name must be at least 2 characters.",
@@ -49,7 +50,7 @@ const SignUp = () => {
       name: "",
       email: "",
       password: "",
-      role: "vendor", // Default to vendor
+      role: "vendor",
     },
   });
 
@@ -78,21 +79,10 @@ const SignUp = () => {
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-green-50 to-white">
-      <Header searchQuery={''} onSearchChange={function (query: string): void {
-          throw new Error('Function not implemented.');
-      }} cartItems={0} />
-      <main className="flex-grow pt-16 md:pt-20">
-        <div className="container max-w-md py-8 md:py-16">
+      <Header searchQuery={''} onSearchChange={() => {}} cartItems={0} />
+      <main className="flex-grow flex items-center justify-center">
+        <div className="w-full max-w-lg p-4">
           <div className="text-center mb-8 animate-fade-down">
-            <div className="flex items-center justify-center mb-8">
-              <div className="h-12 w-12 bg-gradient-to-br from-green-500 to-green-700 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-lg">V</span>
-              </div>
-              <span className="font-bold text-2xl ml-2">
-                <span className="text-green-600">Vendor</span>
-                <span className="text-green-800">Connect</span>
-              </span>
-            </div>
             <h1 className="text-3xl font-bold mb-3">Create your account</h1>
             <p className="text-gray-600">
               Join thousands of vendors and wholesalers in our marketplace
@@ -247,6 +237,7 @@ const SignUp = () => {
           </div>
         </div>
       </main>
+      <Footer />
     </div>
   );
 };

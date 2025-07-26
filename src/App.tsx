@@ -6,6 +6,9 @@ import Index from "./pages/Index";
 import Login from "./pages/login";
 import SignUp from "./pages/SignUp";
 import NotFound from "./pages/NotFound";
+import VendorPage from "./pages/VendorPage"; 
+import WholesalerPage from "./pages/WholesalerPage"; 
+import AuthRoute from "@/components/AuthRoute"; 
 
 const queryClient = new QueryClient();
 
@@ -18,6 +21,25 @@ const App = () => (
           <Route path="/" element={<Index />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<SignUp />} />
+          
+          {/* Protected routes */}
+          <Route 
+            path="/vendor" 
+            element={
+              <AuthRoute role="vendor">
+                <VendorPage />
+              </AuthRoute>
+            } 
+          />
+          <Route 
+            path="/wholesaler" 
+            element={
+              <AuthRoute role="wholesaler">
+                <WholesalerPage />
+              </AuthRoute>
+            } 
+          />
+          
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

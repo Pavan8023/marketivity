@@ -1,8 +1,10 @@
+// src/pages/Login.tsx
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Header } from '@/components/Header';
+import { Footer } from '@/components/Footer';
 import {
   Form,
   FormControl,
@@ -29,7 +31,6 @@ import { Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { auth, googleProvider, db } from '@/lib/firebase';
 
-// Updated form schema with wholesaler/vendor roles
 const formSchema = z.object({
   email: z.string().email({
     message: "Please enter a valid email address.",
@@ -78,7 +79,7 @@ const Login = () => {
     defaultValues: {
       email: "",
       password: "",
-      role: "vendor", // Default to vendor
+      role: "vendor",
     },
   });
 
@@ -369,9 +370,8 @@ const Login = () => {
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-green-50 to-white">
-        <Header searchQuery={''} onSearchChange={function (query: string): void {
-              throw new Error('Function not implemented.');
-          } } cartItems={0} />
+      <Header searchQuery={''} onSearchChange={() => {}} cartItems={0} />
+
       {/* Error Notification */}
       <AnimatePresence>
         {showError && (
@@ -628,8 +628,8 @@ const Login = () => {
         </div>
       )}
 
-      <main className="flex-grow pt-16 md:pt-20">
-        <div className="container max-w-md py-16 md:py-24">
+      <main className="flex-grow flex items-center justify-center">
+        <div className="w-full max-w-lg p-4">
           <div className="text-center mb-8 animate-fade-down">
             <div className="flex items-center justify-center mb-8">
               <div className="h-12 w-12 bg-gradient-to-br from-green-500 to-green-700 rounded-lg flex items-center justify-center">
@@ -793,6 +793,7 @@ const Login = () => {
           </div>
         </div>
       </main>
+      <Footer />
     </div>
   );
 };
