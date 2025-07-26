@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Header } from '@/components/Header';
 import {
   Form,
   FormControl,
@@ -77,6 +78,9 @@ const SignUp = () => {
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-green-50 to-white">
+      <Header searchQuery={''} onSearchChange={function (query: string): void {
+          throw new Error('Function not implemented.');
+      }} cartItems={0} />
       <main className="flex-grow pt-16 md:pt-20">
         <div className="container max-w-md py-8 md:py-16">
           <div className="text-center mb-8 animate-fade-down">

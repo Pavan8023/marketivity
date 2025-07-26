@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Header } from '@/components/Header';
 import {
   Form,
   FormControl,
@@ -49,7 +50,7 @@ const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [providerModalOpen, setProviderModalOpen] = useState(false);
   const [userRole, setUserRole] = useState<string | null>(null);
-  const [googleUser, setGoogleUser] = useState<any>(null); // Store Google user data
+  const [googleRole, setGoogleRole] = useState<'vendor' | 'wholesaler' | null>(null);
 
   // Forgot password states
   const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false);
@@ -148,6 +149,23 @@ const Login = () => {
   const handleEmailLogin = async (values: FormValues) => {
     setIsLoading(true);
     try {
+      // Check if user exists and role matches
+      const usersRef = collection(db, 'users');
+      const q = query(usersRef, where('email', '==', values.email));
+      const querySnapshot = await getDocs(q);
+      
+      if (!querySnapshot.empty) {
+        const userDoc = querySnapshot.docs[0];
+        const userData = userDoc.data();
+        
+        // Check if user role matches selected role
+        if (userData.role !== values.role) {
+          throw new Error(
+            `You are registered as a ${userData.role}. Please select the correct role.`
+          );
+        }
+      }
+
       await setPersistence(auth, browserSessionPersistence);
       await emailLogin(values.email, values.password, values.role);
 
@@ -171,74 +189,40 @@ const Login = () => {
     }
   };
 
-  const handleGoogleLogin = async () => {
+  const handleGoogleLogin = async (role: 'vendor' | 'wholesaler') => {
     setIsLoading(true);
+    setGoogleRole(role);
     try {
       await setPersistence(auth, browserSessionPersistence);
       
       // Sign in with Google
       const result = await signInWithPopup(auth, googleProvider);
       const user = result.user;
-      setGoogleUser(user); // Store Google user data
 
-      // Get user role from Firestore
+      // Create or update user in Firestore
       const userRef = doc(db, 'users', user.uid);
       const userDoc = await getDoc(userRef);
 
-      if (userDoc.exists()) {
-        const role = userDoc.data().role;
-        setUserRole(role);
-
-        toast({
-          title: "Logged in successfully!",
-          description: `Welcome back via Google`,
-        });
-
-        // Redirect based on role
-        if (role === 'wholesaler') {
-          navigate("/wholesaler");
-        } else {
-          navigate("/vendor");
-        }
-      } else {
-        // If user doesn't exist, show role selection modal
-        setProviderModalOpen(true);
-      }
-    } catch (error: any) {
-      showErrorNotification(
-        error.message || "We couldn't sign you in with Google. Please try again."
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Handle role selection for Google sign-in
-  const handleGoogleRoleSelection = async (role: 'vendor' | 'wholesaler') => {
-    if (!googleUser) {
-      showErrorNotification("User data not available. Please try again.");
-      return;
-    }
-
-    try {
-      // Create new user document in Firestore
-      const userRef = doc(db, 'users', googleUser.uid);
-      await setDoc(userRef, {
-        uid: googleUser.uid,
-        email: googleUser.email,
-        displayName: googleUser.displayName || 'New User',
-        photoURL: googleUser.photoURL || '',
+      const userData = {
+        email: user.email,
+        name: user.displayName,
+        photoURL: user.photoURL,
         role: role,
         type: 'google',
         createdAt: new Date(),
-      });
+      };
 
-      setUserRole(role);
-      setProviderModalOpen(false);
+      if (userDoc.exists()) {
+        // Update existing user
+        await updateDoc(userRef, userData);
+      } else {
+        // Create new user
+        await setDoc(userRef, userData);
+      }
 
       toast({
-        title: "Account created successfully!",
-        description: "Welcome to VendorConnect.",
+        title: "Logged in successfully!",
+        description: `Welcome back via Google as a ${role}`,
       });
 
       // Redirect based on role
@@ -248,8 +232,12 @@ const Login = () => {
         navigate("/vendor");
       }
     } catch (error: any) {
-      console.error('Error creating user document:', error);
-      showErrorNotification("Failed to create your account. Please try again.");
+      showErrorNotification(
+        error.message || "We couldn't sign you in with Google. Please try again."
+      );
+    } finally {
+      setIsLoading(false);
+      setGoogleRole(null);
     }
   };
 
@@ -358,9 +346,14 @@ const Login = () => {
     setCaptchaError('');
   };
 
-  const closeProviderModal = () => {
+  const handleRoleSelection = (role: 'vendor' | 'wholesaler') => {
+    // After selecting role, redirect accordingly
+    if (role === 'wholesaler') {
+      navigate('/wholesaler');
+    } else {
+      navigate('/vendor');
+    }
     setProviderModalOpen(false);
-    setGoogleUser(null);
   };
 
   if (loadingAuth || (user && !userRole)) {
@@ -376,7 +369,9 @@ const Login = () => {
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-green-50 to-white">
-
+        <Header searchQuery={''} onSearchChange={function (query: string): void {
+              throw new Error('Function not implemented.');
+          } } cartItems={0} />
       {/* Error Notification */}
       <AnimatePresence>
         {showError && (
@@ -408,14 +403,14 @@ const Login = () => {
         )}
       </AnimatePresence>
 
-      {/* Role Selection Modal */}
+      {/* Role Selection Modal for Google Login */}
       {providerModalOpen && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl w-full max-w-md p-6 animate-fade-in">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-bold">Select Your Role</h2>
               <button
-                onClick={closeProviderModal}
+                onClick={() => setProviderModalOpen(false)}
                 className="text-gray-500 hover:text-gray-700"
               >
                 <X className="h-5 w-5" />
@@ -424,50 +419,50 @@ const Login = () => {
 
             <div className="space-y-4">
               <p className="text-center text-gray-600">
-                Please select your role to continue
+                Please select your role to continue with Google
               </p>
               
               <div className="grid grid-cols-2 gap-4">
                 <Button 
                   className="h-32 flex flex-col items-center justify-center bg-green-50 hover:bg-green-100 border border-green-200"
-                  onClick={() => handleGoogleRoleSelection('vendor')}
+                  onClick={() => handleGoogleLogin('vendor')}
+                  disabled={isLoading && googleRole === 'vendor'}
                 >
-                  <div className="bg-green-100 p-3 rounded-full mb-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-                    </svg>
-                  </div>
-                  <span className="font-medium">Vendor</span>
-                  <p className="text-sm text-gray-500 mt-1">Sell products</p>
+                  {isLoading && googleRole === 'vendor' ? (
+                    <Loader2 className="h-8 w-8 animate-spin text-green-600" />
+                  ) : (
+                    <>
+                      <div className="bg-green-100 p-3 rounded-full mb-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                        </svg>
+                      </div>
+                      <span className="font-medium">Vendor</span>
+                      <p className="text-sm text-gray-500 mt-1">Sell products</p>
+                    </>
+                  )}
                 </Button>
                 
                 <Button 
                   className="h-32 flex flex-col items-center justify-center bg-blue-50 hover:bg-blue-100 border border-blue-200"
-                  onClick={() => handleGoogleRoleSelection('wholesaler')}
+                  onClick={() => handleGoogleLogin('wholesaler')}
+                  disabled={isLoading && googleRole === 'wholesaler'}
                 >
-                  <div className="bg-blue-100 p-3 rounded-full mb-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                    </svg>
-                  </div>
-                  <span className="font-medium">Wholesaler</span>
-                  <p className="text-sm text-gray-500 mt-1">Buy in bulk</p>
+                  {isLoading && googleRole === 'wholesaler' ? (
+                    <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+                  ) : (
+                    <>
+                      <div className="bg-blue-100 p-3 rounded-full mb-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                        </svg>
+                      </div>
+                      <span className="font-medium">Wholesaler</span>
+                      <p className="text-sm text-gray-500 mt-1">Buy in bulk</p>
+                    </>
+                  )}
                 </Button>
               </div>
-              
-              {googleUser?.photoURL && (
-                <div className="flex items-center justify-center mt-4">
-                  <img 
-                    src={googleUser.photoURL} 
-                    alt="Profile" 
-                    className="w-12 h-12 rounded-full border-2 border-green-300"
-                  />
-                  <div className="ml-3">
-                    <p className="font-medium">{googleUser.displayName || 'User'}</p>
-                    <p className="text-sm text-gray-500">{googleUser.email}</p>
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         </div>
@@ -721,7 +716,7 @@ const Login = () => {
                             onValueChange={field.onChange}
                             defaultValue={field.value}
                             className="flex space-x-4"
-                          > 
+                          >
                             <div className="flex items-center space-x-2">
                               <RadioGroupItem value="vendor" id="login-vendor" className="text-green-600" />
                               <label htmlFor="login-vendor" className="text-sm">Vendor</label>
@@ -773,7 +768,7 @@ const Login = () => {
                   <Button
                     variant="outline"
                     className="w-full h-11"
-                    onClick={handleGoogleLogin}
+                    onClick={() => setProviderModalOpen(true)}
                     disabled={isLoading}
                   >
                     <svg className="h-5 w-5 mr-2" viewBox="0 0 24 24">
