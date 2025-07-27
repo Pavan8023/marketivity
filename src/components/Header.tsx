@@ -32,7 +32,7 @@ export const Header = ({ searchQuery, onSearchChange, cartItems = 0 }: HeaderPro
         {/* Actions */}
         <div className="flex items-center space-x-2">
           {/* Mobile Menu Toggle */}
-          <Button variant="outline" size="icon" className="md:hidden" onClick={toggleMenu}>
+          <Button variant="outline" size="icon" className="md:hidden bg-green-100 hover:bg-green-200" onClick={toggleMenu}>
             {isMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </Button>
 
@@ -52,7 +52,7 @@ export const Header = ({ searchQuery, onSearchChange, cartItems = 0 }: HeaderPro
       {isMenuOpen && (
         <nav className="md:hidden bg-card border-t">
           <ul className="flex flex-col p-4 space-y-2">
-            <li><Button variant="default" className="w-full" onClick={() => navigate('/login')}>Get Started</Button></li>
+            <li><Button variant="default" className="w-full bg-green-600 hover:bg-green-700" onClick={() => navigate('/login')}>Get Started</Button></li>
           </ul>
         </nav>
       )}
