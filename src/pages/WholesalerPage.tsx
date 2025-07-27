@@ -1,7 +1,7 @@
 // src/pages/WholesalerPage.tsx
 import { useState, useEffect, useRef } from 'react';
-import { useAuthState } from 'react-firebase-hooks/auth';
-import { auth, db } from '@/lib/firebase';
+import { getAuth, onAuthStateChanged, User } from 'firebase/auth';
+import { db } from '@/lib/firebase';
 import { collection, addDoc, getDocs, query, updateDoc, doc, deleteDoc } from 'firebase/firestore';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
@@ -15,7 +15,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { User, LogOut, Trash2 } from 'lucide-react';
+import { LogOut, Trash2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 declare global {
   interface Window {
@@ -32,8 +33,8 @@ interface Product {
   countryCode: string;
   price: number;
   minOrder: number;
-  quantity: number; // Added quantity field
-  city: string; // Added city field
+  quantity: number;
+  city: string;
   imageUrl: string;
 }
 
@@ -46,7 +47,6 @@ const countryCodes = [
   { value: '+971', label: 'UAE (+971)' },
 ];
 
-// Added cities list including the image cities and additional ones
 const cities = [
   "Mumbai",
   "Delhi",
@@ -63,7 +63,7 @@ const cities = [
 ];
 
 const WholesalerPage = () => {
-  const [user] = useAuthState(auth);
+  const [user, setUser] = useState<User | null>(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
@@ -75,13 +75,32 @@ const WholesalerPage = () => {
     countryCode: '+91',
     price: 0,
     minOrder: 0,
-    quantity: 0, // Added initial quantity
-    city: 'Mumbai', // Added initial city
+    quantity: 0,
+    city: 'Mumbai',
     imageUrl: ''
   });
+  const [loading, setLoading] = useState(true);
   const widgetRef = useRef<any>(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
+    const auth = getAuth();
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        setUser(user);
+        fetchProducts(user.uid);
+      } else {
+        navigate('/login');
+      }
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [navigate]);
+
+  useEffect(() => {
+    if (!user) return;
+
     const script = document.createElement('script');
     script.src = 'https://widget.cloudinary.com/v2.0/global/all.js';
     script.async = true;
@@ -127,32 +146,28 @@ const WholesalerPage = () => {
     return () => {
       document.body.removeChild(script);
     };
-  }, []);
-
-  useEffect(() => {
-    const fetchProducts = async () => {
-      if (user) {
-        const productsRef = collection(db, 'products');
-        const q = query(productsRef);
-        const querySnapshot = await getDocs(q);
-        
-        const productsData: Product[] = [];
-        querySnapshot.forEach((doc) => {
-          if (doc.data().wholesalerId === user.uid) {
-            productsData.push({ id: doc.id, ...doc.data() } as Product);
-          }
-        });
-        
-        setProducts(productsData);
-      }
-    };
-
-    fetchProducts();
   }, [user]);
+
+  const fetchProducts = async (userId: string) => {
+    const productsRef = collection(db, 'products');
+    const q = query(productsRef);
+    const querySnapshot = await getDocs(q);
+    
+    const productsData: Product[] = [];
+    querySnapshot.forEach((doc) => {
+      if (doc.data().wholesalerId === userId) {
+        productsData.push({ id: doc.id, ...doc.data() } as Product);
+      }
+    });
+    
+    setProducts(productsData);
+  };
 
   const handleLogout = async () => {
     try {
+      const auth = getAuth();
       await auth.signOut();
+      navigate('/');
     } catch (error) {
       console.error("Logout failed:", error);
     }
@@ -195,8 +210,8 @@ const WholesalerPage = () => {
       countryCode: product.countryCode,
       price: product.price,
       minOrder: product.minOrder,
-      quantity: product.quantity, // Added quantity
-      city: product.city, // Added city
+      quantity: product.quantity,
+      city: product.city,
       imageUrl: product.imageUrl
     });
   };
@@ -211,8 +226,8 @@ const WholesalerPage = () => {
       countryCode: '+91',
       price: 0,
       minOrder: 0,
-      quantity: 0, // Reset quantity
-      city: 'Mumbai', // Reset city
+      quantity: 0,
+      city: 'Mumbai',
       imageUrl: ''
     });
   };
@@ -253,6 +268,21 @@ const WholesalerPage = () => {
       alert('Failed to save product. Please try again.');
     }
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <Header searchQuery={''} onSearchChange={() => {}} cartItems={0} />
+        <main className="flex-grow container mx-auto px-4 py-8 flex justify-center items-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-green-600 mx-auto"></div>
+            <p className="mt-4 text-gray-600">Loading wholesaler dashboard...</p>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -375,7 +405,6 @@ const WholesalerPage = () => {
                 />
               </div>
               
-              {/* Added City Dropdown */}
               <div>
                 <Label htmlFor="city">City</Label>
                 <select
@@ -453,7 +482,6 @@ const WholesalerPage = () => {
                   />
                 </div>
                 
-                {/* Added Quantity Field */}
                 <div>
                   <Label htmlFor="quantity">Total Stock Quantity</Label>
                   <Input
@@ -578,7 +606,6 @@ const WholesalerPage = () => {
                         </div>
                       </div>
                       
-                      {/* Added Quantity Display */}
                       <div className="mt-2 flex justify-between">
                         <div className="text-sm">
                           <span className="font-medium">Stock: </span>
