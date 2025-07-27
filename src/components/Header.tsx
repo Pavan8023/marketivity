@@ -40,6 +40,13 @@ export const Header = ({ searchQuery, onSearchChange, cartItems = 0 }: HeaderPro
           <Button
             variant="default"
             className="bg-green-600 hover:bg-green-700 hidden md:inline-flex"
+            onClick={() => navigate('/index')}
+          >
+            Home
+          </Button>
+          <Button
+            variant="default"
+            className="bg-green-600 hover:bg-green-700 hidden md:inline-flex"
             onClick={() => navigate('/login')}
           >
             Get Started
@@ -52,6 +59,7 @@ export const Header = ({ searchQuery, onSearchChange, cartItems = 0 }: HeaderPro
       {isMenuOpen && (
         <nav className="md:hidden bg-card border-t">
           <ul className="flex flex-col p-4 space-y-2">
+            <li><Button variant="default" className="w-full bg-green-600 hover:bg-green-700" onClick={() => navigate('/index')}>Home</Button></li>
             <li><Button variant="default" className="w-full bg-green-600 hover:bg-green-700" onClick={() => navigate('/login')}>Get Started</Button></li>
           </ul>
         </nav>
