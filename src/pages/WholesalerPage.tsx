@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import { collection, addDoc, getDocs, query } from 'firebase/firestore';
+import { collection, addDoc, getDocs, query, updateDoc, doc, deleteDoc } from 'firebase/firestore';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import {
@@ -15,47 +15,72 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { User, LogOut } from 'lucide-react';
-import { AdvancedImage } from '@cloudinary/react';
-import { Cloudinary } from '@cloudinary/url-gen';
+import { User, LogOut, Trash2 } from 'lucide-react';
 
-// Extend the Window interface to include cloudinary
 declare global {
   interface Window {
     cloudinary: any;
   }
 }
 
-// Initialize Cloudinary with your environment variables
-const cld = new Cloudinary({
-  cloud: {
-    cloudName: import.meta.env.VITE_CLOUDINARY_CLOUD_NAME
-  }
-});
-
 interface Product {
   id?: string;
   name: string;
   description: string;
+  address: string;
+  mobileNo: string;
+  countryCode: string;
   price: number;
   minOrder: number;
+  quantity: number; // Added quantity field
+  city: string; // Added city field
   imageUrl: string;
 }
+
+const countryCodes = [
+  { value: '+91', label: 'India (+91)' },
+  { value: '+1', label: 'USA (+1)' },
+  { value: '+44', label: 'UK (+44)' },
+  { value: '+61', label: 'Australia (+61)' },
+  { value: '+65', label: 'Singapore (+65)' },
+  { value: '+971', label: 'UAE (+971)' },
+];
+
+// Added cities list including the image cities and additional ones
+const cities = [
+  "Mumbai",
+  "Delhi",
+  "Chennai",
+  "Hyderabad",
+  "Kolkata",
+  "Pune",
+  "Kolhapur",
+  "Bengaluru",
+  "Ahmedabad",
+  "Surat",
+  "Jaipur",
+  "Lucknow"
+];
 
 const WholesalerPage = () => {
   const [user] = useAuthState(auth);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
+  const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [newProduct, setNewProduct] = useState<Product>({
     name: '',
     description: '',
+    address: '',
+    mobileNo: '',
+    countryCode: '+91',
     price: 0,
     minOrder: 0,
+    quantity: 0, // Added initial quantity
+    city: 'Mumbai', // Added initial city
     imageUrl: ''
   });
   const widgetRef = useRef<any>(null);
 
-  // Load Cloudinary widget script
   useEffect(() => {
     const script = document.createElement('script');
     script.src = 'https://widget.cloudinary.com/v2.0/global/all.js';
@@ -89,10 +114,10 @@ const WholesalerPage = () => {
         },
         (error: any, result: any) => {
           if (!error && result.event === 'success') {
-            setNewProduct({
-              ...newProduct,
+            setNewProduct(prev => ({
+              ...prev,
               imageUrl: result.info.secure_url
-            });
+            }));
           }
         }
       );
@@ -133,11 +158,62 @@ const WholesalerPage = () => {
     }
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleDeleteProduct = async (productId: string) => {
+    if (!window.confirm("Are you sure you want to delete this product?")) {
+      return;
+    }
+
+    try {
+      await deleteDoc(doc(db, 'products', productId));
+      setProducts(products.filter(product => product.id !== productId));
+      alert('Product deleted successfully!');
+      
+      if (editingProductId === productId) {
+        handleCancelEdit();
+      }
+    } catch (error) {
+      console.error("Error deleting product:", error);
+      alert('Failed to delete product. Please try again.');
+    }
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setNewProduct({
       ...newProduct,
-      [name]: name === 'price' || name === 'minOrder' ? Number(value) : value
+      [name]: name === 'price' || name === 'minOrder' || name === 'quantity' ? Number(value) : value
+    });
+  };
+
+  const handleEditProduct = (product: Product) => {
+    setEditingProductId(product.id || null);
+    setNewProduct({
+      name: product.name,
+      description: product.description,
+      address: product.address,
+      mobileNo: product.mobileNo,
+      countryCode: product.countryCode,
+      price: product.price,
+      minOrder: product.minOrder,
+      quantity: product.quantity, // Added quantity
+      city: product.city, // Added city
+      imageUrl: product.imageUrl
+    });
+  };
+
+  const handleCancelEdit = () => {
+    setEditingProductId(null);
+    setNewProduct({
+      name: '',
+      description: '',
+      address: '',
+      mobileNo: '',
+      countryCode: '+91',
+      price: 0,
+      minOrder: 0,
+      quantity: 0, // Reset quantity
+      city: 'Mumbai', // Reset city
+      imageUrl: ''
     });
   };
 
@@ -147,28 +223,34 @@ const WholesalerPage = () => {
     if (!user) return;
     
     try {
-      const productsRef = collection(db, 'products');
-      const docRef = await addDoc(productsRef, {
-        ...newProduct,
-        wholesalerId: user.uid,
-        createdAt: new Date()
-      });
+      if (editingProductId) {
+        const productRef = doc(db, 'products', editingProductId);
+        await updateDoc(productRef, {
+          ...newProduct,
+          updatedAt: new Date()
+        });
+        
+        setProducts(products.map(p => 
+          p.id === editingProductId ? { ...newProduct, id: editingProductId } : p
+        ));
+        
+        alert('Product updated successfully!');
+      } else {
+        const productsRef = collection(db, 'products');
+        const docRef = await addDoc(productsRef, {
+          ...newProduct,
+          wholesalerId: user.uid,
+          createdAt: new Date()
+        });
+        
+        setProducts([...products, { ...newProduct, id: docRef.id }]);
+        alert('Product added successfully!');
+      }
       
-      setProducts([...products, { ...newProduct, id: docRef.id }]);
-      
-      // Reset form
-      setNewProduct({
-        name: '',
-        description: '',
-        price: 0,
-        minOrder: 0,
-        imageUrl: ''
-      });
-      
-      alert('Product added successfully!');
+      handleCancelEdit();
     } catch (error) {
-      console.error("Error adding product:", error);
-      alert('Failed to add product. Please try again.');
+      console.error("Error saving product:", error);
+      alert('Failed to save product. Please try again.');
     }
   };
 
@@ -252,7 +334,9 @@ const WholesalerPage = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Product Form */}
           <div className="lg:col-span-1 bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-            <h2 className="text-xl font-bold mb-6">Add New Product</h2>
+            <h2 className="text-xl font-bold mb-6">
+              {editingProductId ? 'Edit Product' : 'Add New Product'}
+            </h2>
             
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
@@ -279,7 +363,68 @@ const WholesalerPage = () => {
                 />
               </div>
               
-              <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="address">Business Address</Label>
+                <Input
+                  id="address"
+                  name="address"
+                  value={newProduct.address}
+                  onChange={handleInputChange}
+                  placeholder="Full business address"
+                  required
+                />
+              </div>
+              
+              {/* Added City Dropdown */}
+              <div>
+                <Label htmlFor="city">City</Label>
+                <select
+                  id="city"
+                  name="city"
+                  value={newProduct.city}
+                  onChange={handleInputChange}
+                  className="w-full p-2 border rounded-md"
+                  required
+                >
+                  {cities.map(city => (
+                    <option key={city} value={city}>{city}</option>
+                  ))}
+                </select>
+              </div>
+              
+              <div className="grid grid-cols-3 gap-4">
+                <div className="col-span-1">
+                  <Label htmlFor="countryCode">Country Code</Label>
+                  <select
+                    id="countryCode"
+                    name="countryCode"
+                    value={newProduct.countryCode}
+                    onChange={handleInputChange}
+                    className="w-full p-2 border rounded-md"
+                    required
+                  >
+                    {countryCodes.map((code) => (
+                      <option key={code.value} value={code.value}>
+                        {code.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="col-span-2">
+                  <Label htmlFor="mobileNo">Mobile Number</Label>
+                  <Input
+                    id="mobileNo"
+                    name="mobileNo"
+                    value={newProduct.mobileNo}
+                    onChange={handleInputChange}
+                    placeholder="Mobile number"
+                    type="tel"
+                    required
+                  />
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-3 gap-4">
                 <div>
                   <Label htmlFor="price">Price per unit (₹)</Label>
                   <Input
@@ -307,6 +452,21 @@ const WholesalerPage = () => {
                     required
                   />
                 </div>
+                
+                {/* Added Quantity Field */}
+                <div>
+                  <Label htmlFor="quantity">Total Stock Quantity</Label>
+                  <Input
+                    type="number"
+                    id="quantity"
+                    name="quantity"
+                    value={newProduct.quantity}
+                    onChange={handleInputChange}
+                    placeholder="e.g., 100"
+                    min="0"
+                    required
+                  />
+                </div>
               </div>
               
               <div>
@@ -314,8 +474,9 @@ const WholesalerPage = () => {
                 <div className="mt-1">
                   {newProduct.imageUrl ? (
                     <div className="flex items-center space-x-4">
-                      <AdvancedImage 
-                        cldImg={cld.image(newProduct.imageUrl)} 
+                      <img 
+                        src={newProduct.imageUrl} 
+                        alt="Preview" 
                         className="w-16 h-16 object-cover rounded-md"
                       />
                       <Button 
@@ -345,13 +506,26 @@ const WholesalerPage = () => {
                 </div>
               </div>
               
-              <Button 
-                type="submit" 
-                className="w-full bg-green-600 hover:bg-green-700"
-                disabled={!newProduct.imageUrl}
-              >
-                Add Product
-              </Button>
+              <div className="flex space-x-3">
+                <Button 
+                  type="submit" 
+                  className="flex-1 bg-green-600 hover:bg-green-700"
+                  disabled={!newProduct.imageUrl}
+                >
+                  {editingProductId ? 'Update Product' : 'Add Product'}
+                </Button>
+                
+                {editingProductId && (
+                  <Button 
+                    type="button"
+                    variant="outline"
+                    className="flex-1"
+                    onClick={handleCancelEdit}
+                  >
+                    Cancel
+                  </Button>
+                )}
+              </div>
             </form>
           </div>
           
@@ -372,10 +546,19 @@ const WholesalerPage = () => {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {products.map((product) => (
-                  <div key={product.id} className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                  <div key={product.id} className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden relative">
+                    <button 
+                      onClick={() => handleDeleteProduct(product.id!)}
+                      className="absolute top-2 right-2 bg-white rounded-full p-2 shadow-md hover:bg-red-50 text-red-500"
+                      aria-label="Delete product"
+                    >
+                      <Trash2 className="h-5 w-5" />
+                    </button>
+                    
                     {product.imageUrl ? (
-                      <AdvancedImage 
-                        cldImg={cld.image(product.imageUrl)} 
+                      <img 
+                        src={product.imageUrl} 
+                        alt={product.name} 
                         className="w-full h-48 object-cover"
                       />
                     ) : (
@@ -383,7 +566,7 @@ const WholesalerPage = () => {
                     )}
                     <div className="p-4">
                       <h3 className="font-bold text-lg">{product.name}</h3>
-                      <p className="text-gray-600 text-sm mt-1">{product.description}</p>
+                      <p className="text-gray-600 text-sm mt-1 line-clamp-2">{product.description}</p>
                       
                       <div className="mt-4 flex justify-between items-center">
                         <div>
@@ -395,12 +578,46 @@ const WholesalerPage = () => {
                         </div>
                       </div>
                       
-                      <div className="mt-4 flex space-x-2">
-                        <Button variant="outline" className="flex-1">
-                          Edit
-                        </Button>
-                        <Button className="flex-1 bg-green-600 hover:bg-green-700">
-                          View
+                      {/* Added Quantity Display */}
+                      <div className="mt-2 flex justify-between">
+                        <div className="text-sm">
+                          <span className="font-medium">Stock: </span>
+                          <span className="text-gray-600">{product.quantity} units</span>
+                        </div>
+                      </div>
+                      
+                      <div className="mt-4">
+                        <div className="flex items-center text-sm text-gray-500">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                          </svg>
+                          <span className="truncate">{product.address}</span>
+                        </div>
+                        
+                        <div className="flex items-center text-sm text-gray-500 mt-1">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                          </svg>
+                          <span className="truncate">{product.city}</span>
+                        </div>
+                        
+                        <div className="flex items-center text-sm text-gray-500 mt-1">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                          </svg>
+                          <span>{product.countryCode} {product.mobileNo}</span>
+                        </div>
+                      </div>
+                      
+                      <div className="mt-4">
+                        <Button 
+                          variant="outline" 
+                          className="w-full"
+                          onClick={() => handleEditProduct(product)}
+                        >
+                          Edit Product
                         </Button>
                       </div>
                     </div>

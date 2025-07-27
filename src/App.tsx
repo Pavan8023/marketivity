@@ -8,12 +8,12 @@ import SignUp from "./pages/SignUp";
 import NotFound from "./pages/NotFound";
 import VendorPage from "./pages/VendorPage"; 
 import WholesalerPage from "./pages/WholesalerPage"; 
-import AuthRoute from "@/components/AuthRoute"; 
+import AuthRoute from "@/components/AuthRoute";
 
 const queryClient = new QueryClient();
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
+  <QueryClientProvider client={queryClient}>  
     <TooltipProvider>
       <Toaster />
       <BrowserRouter>
