@@ -5,6 +5,9 @@ import { auth, db } from '@/lib/firebase';
 import { collection, getDocs, query, updateDoc, doc } from 'firebase/firestore';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
+
+import VideoCall from '@/components/VideoCall';
+
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -69,45 +72,54 @@ const VendorPage = () => {
   const [showSuccess, setShowSuccess] = useState(false);
   const [orderSuccess, setOrderSuccess] = useState<Order | null>(null);
   const [quantity, setQuantity] = useState(MIN_ORDER_QUANTITY);
-  
+  const [showVideoCall, setShowVideoCall] = useState(false);
+  const [videoCallRoom, setVideoCallRoom] = useState('');
+
   // Filter states
   const [selectedCity, setSelectedCity] = useState("All Cities");
   const [selectedPriceRange, setSelectedPriceRange] = useState("All Prices");
   const [searchQuery, setSearchQuery] = useState("");
 
+  const startVideoCall = (product: Product) => {
+    // Generate unique room name using product ID and wholesaler ID
+    const roomName = `FreshFarm-${product.id}-${product.wholesalerId}`;
+    setVideoCallRoom(roomName);
+    setShowVideoCall(true);
+  };
+
   useEffect(() => {
     const fetchProductsAndWholesalers = async () => {
       try {
         setLoading(true);
-        
+
         // Fetch products
         const productsRef = collection(db, 'products');
         const productsSnapshot = await getDocs(productsRef);
         const productsData: Product[] = [];
-        
+
         productsSnapshot.forEach(doc => {
           const data = doc.data();
-          productsData.push({ 
-            id: doc.id, 
+          productsData.push({
+            id: doc.id,
             // Set city to the city field or extract from address if not present
             city: data.city || (data.address ? data.address.split(' ').pop() : 'Unknown'),
             ...data
           } as Product);
         });
-        
+
         // Fetch wholesalers and map to products
         const wholesalersRef = collection(db, 'users');
         const wholesalersSnapshot = await getDocs(wholesalersRef);
         const wholesalersMap = new Map();
-        
+
         wholesalersSnapshot.forEach(doc => {
           const data = doc.data();
-          wholesalersMap.set(doc.id, { 
-            name: data.name, 
-            photo: data.photoURL 
+          wholesalersMap.set(doc.id, {
+            name: data.name,
+            photo: data.photoURL
           });
         });
-        
+
         // Add wholesaler details to products
         const productsWithWholesalers = productsData.map(product => {
           const wholesaler = wholesalersMap.get(product.wholesalerId);
@@ -117,7 +129,7 @@ const VendorPage = () => {
             wholesalerPhoto: wholesaler?.photo || null
           };
         });
-        
+
         setProducts(productsWithWholesalers);
         setFilteredProducts(productsWithWholesalers);
       } catch (error) {
@@ -133,15 +145,15 @@ const VendorPage = () => {
   useEffect(() => {
     // Apply filters whenever they change
     let result = [...products];
-    
+
     // Apply city filter
     if (selectedCity !== "All Cities") {
-      result = result.filter(product => 
+      result = result.filter(product =>
         product.city?.toLowerCase().includes(selectedCity.toLowerCase()) ||
         product.address?.toLowerCase().includes(selectedCity.toLowerCase())
       );
     }
-    
+
     // Apply price range filter
     if (selectedPriceRange !== "All Prices") {
       if (selectedPriceRange === "₹0-500") {
@@ -152,17 +164,17 @@ const VendorPage = () => {
         result = result.filter(product => product.price > 1000);
       }
     }
-    
+
     // Apply search filter
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
-      result = result.filter(product => 
-        product.name.toLowerCase().includes(query) || 
+      result = result.filter(product =>
+        product.name.toLowerCase().includes(query) ||
         product.description.toLowerCase().includes(query) ||
         product.wholesalerName?.toLowerCase().includes(query)
       );
     }
-    
+
     setFilteredProducts(result);
   }, [selectedCity, selectedPriceRange, searchQuery, products]);
 
@@ -195,7 +207,7 @@ const VendorPage = () => {
 
   const handleQuantityChange = (value: number) => {
     if (!selectedProduct) return;
-    
+
     // Ensure quantity is at least MIN_ORDER_QUANTITY and not more than available stock
     const newQuantity = Math.max(MIN_ORDER_QUANTITY, value);
     setQuantity(Math.min(newQuantity, selectedProduct.quantity));
@@ -203,11 +215,11 @@ const VendorPage = () => {
 
   const handlePayment = async () => {
     if (!selectedProduct || !user) return;
-    
+
     try {
       // Open Razorpay payment link
       window.open(RAZORPAY_LINK, '_blank');
-      
+
       // Create order record
       const order: Order = {
         id: `order_${Date.now()}`,
@@ -220,25 +232,25 @@ const VendorPage = () => {
         wholesalerId: selectedProduct.wholesalerId,
         vendorId: user.uid
       };
-      
+
       // Update product stock in Firestore
       const productRef = doc(db, 'products', selectedProduct.id);
       await updateDoc(productRef, {
         quantity: selectedProduct.quantity - quantity
       });
-      
+
       // Update local state
-      setProducts(products.map(p => 
-        p.id === selectedProduct.id 
-          ? { ...p, quantity: p.quantity - quantity } 
+      setProducts(products.map(p =>
+        p.id === selectedProduct.id
+          ? { ...p, quantity: p.quantity - quantity }
           : p
       ));
-      
+
       // Show success
       setOrderSuccess(order);
       setShowSuccess(true);
       setSelectedProduct(null);
-      
+
       toast.success('Order placed successfully!');
     } catch (error) {
       console.error('Payment error:', error);
@@ -248,20 +260,20 @@ const VendorPage = () => {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <Header searchQuery={''} onSearchChange={() => {}} cartItems={0} />
+      <Header searchQuery={''} onSearchChange={() => { }} cartItems={0} />
       <header className="border-b">
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
           <h1 className="text-xl font-bold text-green-700">Vendor Dashboard</h1>
           <DropdownMenu open={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
             <DropdownMenuTrigger asChild>
-              <Button 
-                variant="ghost" 
+              <Button
+                variant="ghost"
                 className="rounded-full p-1 border border-gray-200"
               >
                 {user?.photoURL ? (
-                  <img 
-                    src={user.photoURL} 
-                    alt="Profile" 
+                  <img
+                    src={user.photoURL}
+                    alt="Profile"
                     className="w-8 h-8 rounded-full"
                   />
                 ) : (
@@ -273,9 +285,9 @@ const VendorPage = () => {
               <div className="p-3 border-b">
                 <div className="flex items-center space-x-3">
                   {user?.photoURL ? (
-                    <img 
-                      src={user.photoURL} 
-                      alt="Profile" 
+                    <img
+                      src={user.photoURL}
+                      alt="Profile"
                       className="w-10 h-10 rounded-full"
                     />
                   ) : (
@@ -287,7 +299,7 @@ const VendorPage = () => {
                   </div>
                 </div>
               </div>
-              
+
               <div className="p-3 border-b">
                 <p className="text-sm text-gray-500 mb-1">Account Type</p>
                 <div className="flex items-center">
@@ -312,7 +324,7 @@ const VendorPage = () => {
                   </span>
                 </div>
               </div>
-              
+
               <DropdownMenuItem onClick={handleLogout}>
                 <LogOut className="mr-2 h-4 w-4" />
                 <span>Log out</span>
@@ -321,13 +333,13 @@ const VendorPage = () => {
           </DropdownMenu>
         </div>
       </header>
-      
+
       <main className="flex-grow container mx-auto px-4 py-8">
         <div className="mb-8">
           <h2 className="text-2xl font-bold text-gray-800 mb-2">Find Farm Fresh Supplies</h2>
           <p className="text-gray-600">Premium quality vegetables and fruits sourced directly from farms</p>
         </div>
-        
+
         {/* Search and Filters */}
         <div className="mb-8">
           <div className="flex flex-col md:flex-row gap-4 mb-6">
@@ -343,7 +355,7 @@ const VendorPage = () => {
               <Button variant="outline">Herbs</Button>
             </div>
           </div>
-          
+
           {/* Filter Bar */}
           <div className="bg-white border rounded-lg p-4 space-y-4">
             <div className="flex items-center justify-between">
@@ -403,7 +415,7 @@ const VendorPage = () => {
             </div>
           </div>
         </div>
-        
+
         {/* Products Grid */}
         {loading ? (
           <div className="text-center py-16">
@@ -429,16 +441,16 @@ const VendorPage = () => {
               <Card key={product.id} className="hover:shadow-md transition-shadow">
                 {product.imageUrl ? (
                   <div className="h-48 overflow-hidden rounded-t-lg">
-                    <img 
-                      src={product.imageUrl} 
-                      alt={product.name} 
+                    <img
+                      src={product.imageUrl}
+                      alt={product.name}
                       className="w-full h-full object-cover"
                     />
                   </div>
                 ) : (
                   <div className="bg-gray-200 border-2 border-dashed rounded-t-lg w-full h-48" />
                 )}
-                
+
                 <CardHeader>
                   <div className="flex justify-between items-start">
                     <CardTitle className="text-lg">{product.name}</CardTitle>
@@ -455,16 +467,16 @@ const VendorPage = () => {
                     <span className="truncate">{product.address}</span>
                   </div>
                 </CardHeader>
-                
+
                 <CardContent>
                   <p className="text-gray-600 text-sm line-clamp-2">{product.description}</p>
-                  
+
                   <div className="mt-4 flex justify-between items-center">
                     <div className="flex items-center">
                       {product.wholesalerPhoto ? (
-                        <img 
-                          src={product.wholesalerPhoto} 
-                          alt={product.wholesalerName} 
+                        <img
+                          src={product.wholesalerPhoto}
+                          alt={product.wholesalerName}
                           className="w-8 h-8 rounded-full mr-2"
                         />
                       ) : (
@@ -476,7 +488,7 @@ const VendorPage = () => {
                       </div>
                     </div>
                   </div>
-                  
+
                   <div className="mt-4 flex justify-between items-center">
                     <div>
                       <span className="font-bold text-green-700">₹{product.price}</span>
@@ -487,18 +499,18 @@ const VendorPage = () => {
                     </div>
                   </div>
                 </CardContent>
-                
+
                 <CardFooter className="flex justify-between gap-2">
-                  <a 
-                    href={`tel:${product.countryCode}${product.mobileNo}`} 
+                  <a
+                    href={`tel:${product.countryCode}${product.mobileNo}`}
                     className="flex-1"
                   >
                     <Button variant="outline" className="w-full">
                       <Phone className="h-4 w-4 mr-2" /> Call
                     </Button>
                   </a>
-                  <Button 
-                    className="flex-1" 
+                  <Button
+                    className="flex-1"
                     onClick={() => setSelectedProduct(product)}
                     disabled={product.quantity < MIN_ORDER_QUANTITY}
                   >
@@ -511,39 +523,39 @@ const VendorPage = () => {
         )}
       </main>
       <Footer />
-      
+
       {/* Product Detail Modal */}
       {selectedProduct && (
         <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="sticky top-0 bg-white p-4 flex justify-between items-center border-b">
               <h3 className="text-xl font-bold">{selectedProduct.name}</h3>
-              <Button 
-                variant="ghost" 
+              <Button
+                variant="ghost"
                 size="icon"
                 onClick={() => setSelectedProduct(null)}
               >
                 <X className="h-5 w-5" />
               </Button>
             </div>
-            
+
             <div className="p-6">
               {selectedProduct.imageUrl ? (
-                <img 
-                  src={selectedProduct.imageUrl} 
-                  alt={selectedProduct.name} 
+                <img
+                  src={selectedProduct.imageUrl}
+                  alt={selectedProduct.name}
                   className="w-full h-64 object-cover rounded-lg mb-6"
                 />
               ) : (
                 <div className="bg-gray-200 border-2 border-dashed rounded-lg w-full h-64 mb-6" />
               )}
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                 <div>
                   <h4 className="font-medium mb-2">Description</h4>
                   <p className="text-gray-600">{selectedProduct.description}</p>
                 </div>
-                
+
                 <div>
                   <h4 className="font-medium mb-2">Details</h4>
                   <div className="space-y-2">
@@ -566,14 +578,14 @@ const VendorPage = () => {
                   </div>
                 </div>
               </div>
-              
+
               {/* Quantity Selector */}
               <div className="bg-gray-50 rounded-lg p-4 mb-6">
                 <h4 className="font-medium mb-3">Order Quantity</h4>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center">
-                    <Button 
-                      variant="outline" 
+                    <Button
+                      variant="outline"
                       size="icon"
                       className="rounded-full"
                       onClick={() => handleQuantityChange(quantity - 1)}
@@ -582,8 +594,8 @@ const VendorPage = () => {
                       <Minus className="h-4 w-4" />
                     </Button>
                     <span className="mx-4 text-lg font-medium">{quantity}</span>
-                    <Button 
-                      variant="outline" 
+                    <Button
+                      variant="outline"
                       size="icon"
                       className="rounded-full"
                       onClick={() => handleQuantityChange(quantity + 1)}
@@ -592,7 +604,7 @@ const VendorPage = () => {
                       <Plus className="h-4 w-4" />
                     </Button>
                   </div>
-                  
+
                   <div className="text-right">
                     <div className="text-sm text-gray-500">Total Amount</div>
                     <div className="text-xl font-bold text-green-700">
@@ -600,18 +612,18 @@ const VendorPage = () => {
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="mt-3 text-sm text-gray-500">
                   Minimum order: {selectedProduct.minOrder} units
                 </div>
               </div>
-              
+
               <div className="bg-gray-50 rounded-lg p-4 mb-6">
                 <div className="flex items-center mb-4">
                   {selectedProduct.wholesalerPhoto ? (
-                    <img 
-                      src={selectedProduct.wholesalerPhoto} 
-                      alt={selectedProduct.wholesalerName} 
+                    <img
+                      src={selectedProduct.wholesalerPhoto}
+                      alt={selectedProduct.wholesalerName}
                       className="w-10 h-10 rounded-full mr-3"
                     />
                   ) : (
@@ -622,31 +634,35 @@ const VendorPage = () => {
                     <p className="text-sm text-gray-500">Delivery: 2-4 hours</p>
                   </div>
                 </div>
-                
+
                 <div className="flex justify-between">
-                  <a 
-                    href={`tel:${selectedProduct.countryCode}${selectedProduct.mobileNo}`} 
+                  <a
+                    href={`tel:${selectedProduct.countryCode}${selectedProduct.mobileNo}`}
                     className="flex-1 mr-2"
                   >
                     <Button className="w-full">
                       <Phone className="h-4 w-4 mr-2" /> Call: {selectedProduct.countryCode} {selectedProduct.mobileNo}
                     </Button>
                   </a>
-                  <Button variant="outline" className="flex-1">
-                    Send Message
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => startVideoCall(selectedProduct)}
+                  >
+                    Video Call
                   </Button>
                 </div>
               </div>
-              
+
               <div className="flex gap-3">
-                <Button 
-                  variant="outline" 
-                  className="flex-1" 
+                <Button
+                  variant="outline"
+                  className="flex-1"
                   onClick={() => setSelectedProduct(null)}
                 >
                   Close
                 </Button>
-                <Button 
+                <Button
                   className="flex-1 bg-green-600 hover:bg-green-700"
                   onClick={handlePayment}
                   disabled={quantity > selectedProduct.quantity || quantity < selectedProduct.minOrder}
@@ -658,7 +674,7 @@ const VendorPage = () => {
           </div>
         </div>
       )}
-      
+
       {/* Order Success Modal */}
       {showSuccess && orderSuccess && (
         <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
@@ -667,29 +683,29 @@ const VendorPage = () => {
               <CheckCircle className="h-16 w-16 mx-auto" />
             </div>
             <h3 className="text-2xl font-bold mb-2">Order Placed Successfully!</h3>
-            
+
             <div className="bg-green-50 rounded-lg p-4 mb-6 text-left">
               <div className="grid grid-cols-2 gap-2">
                 <div className="font-medium">Product:</div>
                 <div>{orderSuccess.productName}</div>
-                
+
                 <div className="font-medium">Quantity:</div>
                 <div>{orderSuccess.quantity} units</div>
-                
+
                 <div className="font-medium">Amount:</div>
                 <div className="text-green-600 font-bold">₹{orderSuccess.amount}</div>
-                
+
                 <div className="font-medium">Order ID:</div>
                 <div className="truncate">{orderSuccess.id}</div>
               </div>
             </div>
-            
+
             <p className="text-gray-600 mb-6">
               Your order has been placed and will be delivered soon.
               You can contact the wholesaler for delivery details.
             </p>
-            
-            <Button 
+
+            <Button
               className="bg-green-600 hover:bg-green-700"
               onClick={() => setShowSuccess(false)}
             >
@@ -697,6 +713,16 @@ const VendorPage = () => {
             </Button>
           </div>
         </div>
+      )}
+      {showVideoCall && (
+        <VideoCall
+          roomName={videoCallRoom}
+          onClose={() => setShowVideoCall(false)}
+          userInfo={{
+            displayName: user?.displayName || 'Vendor',
+            email: user?.email || ''
+          }}
+        />
       )}
     </div>
   );

@@ -18,6 +18,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { LogOut, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
+import VideoCall from '@/components/VideoCall';
+
 declare global {
   interface Window {
     cloudinary: any;
@@ -25,6 +27,7 @@ declare global {
 }
 
 interface Product {
+  [x: string]: any;
   id?: string;
   name: string;
   description: string;
@@ -36,6 +39,7 @@ interface Product {
   quantity: number;
   city: string;
   imageUrl: string;
+  wholesalerId?: string;
 }
 
 const countryCodes = [
@@ -82,6 +86,17 @@ const WholesalerPage = () => {
   const [loading, setLoading] = useState(true);
   const widgetRef = useRef<any>(null);
   const navigate = useNavigate();
+  
+  // Video call states moved inside the component
+  const [showVideoCall, setShowVideoCall] = useState(false);
+  const [videoCallRoom, setVideoCallRoom] = useState('');
+
+  const startVideoCall = (product: Product) => {
+    // Generate the same room name as used in VendorPage
+    const roomName = `FreshFarm-${product.id}-${product.wholesalerId}`;
+    setVideoCallRoom(roomName);
+    setShowVideoCall(true);
+  };
 
   useEffect(() => {
     const auth = getAuth();
@@ -152,14 +167,14 @@ const WholesalerPage = () => {
     const productsRef = collection(db, 'products');
     const q = query(productsRef);
     const querySnapshot = await getDocs(q);
-    
+
     const productsData: Product[] = [];
     querySnapshot.forEach((doc) => {
       if (doc.data().wholesalerId === userId) {
         productsData.push({ id: doc.id, ...doc.data() } as Product);
       }
     });
-    
+
     setProducts(productsData);
   };
 
@@ -182,7 +197,7 @@ const WholesalerPage = () => {
       await deleteDoc(doc(db, 'products', productId));
       setProducts(products.filter(product => product.id !== productId));
       alert('Product deleted successfully!');
-      
+
       if (editingProductId === productId) {
         handleCancelEdit();
       }
@@ -234,9 +249,9 @@ const WholesalerPage = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!user) return;
-    
+
     try {
       if (editingProductId) {
         const productRef = doc(db, 'products', editingProductId);
@@ -244,11 +259,11 @@ const WholesalerPage = () => {
           ...newProduct,
           updatedAt: new Date()
         });
-        
-        setProducts(products.map(p => 
+
+        setProducts(products.map(p =>
           p.id === editingProductId ? { ...newProduct, id: editingProductId } : p
         ));
-        
+
         alert('Product updated successfully!');
       } else {
         const productsRef = collection(db, 'products');
@@ -257,11 +272,11 @@ const WholesalerPage = () => {
           wholesalerId: user.uid,
           createdAt: new Date()
         });
-        
+
         setProducts([...products, { ...newProduct, id: docRef.id }]);
         alert('Product added successfully!');
       }
-      
+
       handleCancelEdit();
     } catch (error) {
       console.error("Error saving product:", error);
@@ -272,7 +287,7 @@ const WholesalerPage = () => {
   if (loading) {
     return (
       <div className="min-h-screen flex flex-col">
-        <Header searchQuery={''} onSearchChange={() => {}} cartItems={0} />
+        <Header searchQuery={''} onSearchChange={() => { }} cartItems={0} />
         <main className="flex-grow container mx-auto px-4 py-8 flex justify-center items-center">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-green-600 mx-auto"></div>
@@ -286,20 +301,20 @@ const WholesalerPage = () => {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <Header searchQuery={''} onSearchChange={() => {}} cartItems={0} />
+      <Header searchQuery={''} onSearchChange={() => { }} cartItems={0} />
       <header className="border-b">
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
           <h1 className="text-xl font-bold text-green-700">Wholesaler Dashboard</h1>
           <DropdownMenu open={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
             <DropdownMenuTrigger asChild>
-              <Button 
-                variant="ghost" 
+              <Button
+                variant="ghost"
                 className="rounded-full p-1 border border-gray-200"
               >
                 {user?.photoURL ? (
-                  <img 
-                    src={user.photoURL} 
-                    alt="Profile" 
+                  <img
+                    src={user.photoURL}
+                    alt="Profile"
                     className="w-8 h-8 rounded-full"
                   />
                 ) : (
@@ -311,9 +326,9 @@ const WholesalerPage = () => {
               <div className="p-3 border-b">
                 <div className="flex items-center space-x-3">
                   {user?.photoURL ? (
-                    <img 
-                      src={user.photoURL} 
-                      alt="Profile" 
+                    <img
+                      src={user.photoURL}
+                      alt="Profile"
                       className="w-10 h-10 rounded-full"
                     />
                   ) : (
@@ -325,7 +340,7 @@ const WholesalerPage = () => {
                   </div>
                 </div>
               </div>
-              
+
               <div className="p-3 border-b">
                 <p className="text-sm text-gray-500 mb-1">Account Type</p>
                 <div className="flex items-center">
@@ -350,7 +365,7 @@ const WholesalerPage = () => {
                   </span>
                 </div>
               </div>
-              
+
               <DropdownMenuItem onClick={handleLogout}>
                 <LogOut className="mr-2 h-4 w-4" />
                 <span>Log out</span>
@@ -359,7 +374,7 @@ const WholesalerPage = () => {
           </DropdownMenu>
         </div>
       </header>
-      
+
       <main className="flex-grow container mx-auto px-4 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Product Form */}
@@ -367,7 +382,7 @@ const WholesalerPage = () => {
             <h2 className="text-xl font-bold mb-6">
               {editingProductId ? 'Edit Product' : 'Add New Product'}
             </h2>
-            
+
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <Label htmlFor="name">Product Name</Label>
@@ -380,7 +395,7 @@ const WholesalerPage = () => {
                   required
                 />
               </div>
-              
+
               <div>
                 <Label htmlFor="description">Description</Label>
                 <Textarea
@@ -392,7 +407,7 @@ const WholesalerPage = () => {
                   required
                 />
               </div>
-              
+
               <div>
                 <Label htmlFor="address">Business Address</Label>
                 <Input
@@ -404,7 +419,7 @@ const WholesalerPage = () => {
                   required
                 />
               </div>
-              
+
               <div>
                 <Label htmlFor="city">City</Label>
                 <select
@@ -420,7 +435,7 @@ const WholesalerPage = () => {
                   ))}
                 </select>
               </div>
-              
+
               <div className="grid grid-cols-3 gap-4">
                 <div className="col-span-1">
                   <Label htmlFor="countryCode">Country Code</Label>
@@ -452,7 +467,7 @@ const WholesalerPage = () => {
                   />
                 </div>
               </div>
-              
+
               <div className="grid grid-cols-3 gap-4">
                 <div>
                   <Label htmlFor="price">Price per unit (₹)</Label>
@@ -467,7 +482,7 @@ const WholesalerPage = () => {
                     required
                   />
                 </div>
-                
+
                 <div>
                   <Label htmlFor="minOrder">Minimum Order Quantity</Label>
                   <Input
@@ -481,7 +496,7 @@ const WholesalerPage = () => {
                     required
                   />
                 </div>
-                
+
                 <div>
                   <Label htmlFor="quantity">Total Stock Quantity</Label>
                   <Input
@@ -496,19 +511,19 @@ const WholesalerPage = () => {
                   />
                 </div>
               </div>
-              
+
               <div>
                 <Label>Product Image</Label>
                 <div className="mt-1">
                   {newProduct.imageUrl ? (
                     <div className="flex items-center space-x-4">
-                      <img 
-                        src={newProduct.imageUrl} 
-                        alt="Preview" 
+                      <img
+                        src={newProduct.imageUrl}
+                        alt="Preview"
                         className="w-16 h-16 object-cover rounded-md"
                       />
-                      <Button 
-                        type="button" 
+                      <Button
+                        type="button"
                         variant="outline"
                         onClick={() => widgetRef.current?.open()}
                       >
@@ -516,8 +531,8 @@ const WholesalerPage = () => {
                       </Button>
                     </div>
                   ) : (
-                    <Button 
-                      type="button" 
+                    <Button
+                      type="button"
                       variant="outline"
                       onClick={() => widgetRef.current?.open()}
                       className="w-full py-8"
@@ -533,18 +548,18 @@ const WholesalerPage = () => {
                   )}
                 </div>
               </div>
-              
+
               <div className="flex space-x-3">
-                <Button 
-                  type="submit" 
+                <Button
+                  type="submit"
                   className="flex-1 bg-green-600 hover:bg-green-700"
                   disabled={!newProduct.imageUrl}
                 >
                   {editingProductId ? 'Update Product' : 'Add Product'}
                 </Button>
-                
+
                 {editingProductId && (
-                  <Button 
+                  <Button
                     type="button"
                     variant="outline"
                     className="flex-1"
@@ -556,11 +571,11 @@ const WholesalerPage = () => {
               </div>
             </form>
           </div>
-          
+
           {/* Product List */}
           <div className="lg:col-span-2">
             <h2 className="text-xl font-bold mb-6">Your Products</h2>
-            
+
             {products.length === 0 ? (
               <div className="bg-white p-8 rounded-xl border border-gray-200 shadow-sm text-center">
                 <div className="text-gray-400 mb-4">
@@ -575,18 +590,18 @@ const WholesalerPage = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {products.map((product) => (
                   <div key={product.id} className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden relative">
-                    <button 
+                    <button
                       onClick={() => handleDeleteProduct(product.id!)}
                       className="absolute top-2 right-2 bg-white rounded-full p-2 shadow-md hover:bg-red-50 text-red-500"
                       aria-label="Delete product"
                     >
                       <Trash2 className="h-5 w-5" />
                     </button>
-                    
+
                     {product.imageUrl ? (
-                      <img 
-                        src={product.imageUrl} 
-                        alt={product.name} 
+                      <img
+                        src={product.imageUrl}
+                        alt={product.name}
                         className="w-full h-48 object-cover"
                       />
                     ) : (
@@ -595,7 +610,7 @@ const WholesalerPage = () => {
                     <div className="p-4">
                       <h3 className="font-bold text-lg">{product.name}</h3>
                       <p className="text-gray-600 text-sm mt-1 line-clamp-2">{product.description}</p>
-                      
+
                       <div className="mt-4 flex justify-between items-center">
                         <div>
                           <span className="font-bold text-green-700">₹{product.price}</span>
@@ -605,14 +620,14 @@ const WholesalerPage = () => {
                           Min: {product.minOrder} units
                         </div>
                       </div>
-                      
+
                       <div className="mt-2 flex justify-between">
                         <div className="text-sm">
                           <span className="font-medium">Stock: </span>
                           <span className="text-gray-600">{product.quantity} units</span>
                         </div>
                       </div>
-                      
+
                       <div className="mt-4">
                         <div className="flex items-center text-sm text-gray-500">
                           <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -621,7 +636,7 @@ const WholesalerPage = () => {
                           </svg>
                           <span className="truncate">{product.address}</span>
                         </div>
-                        
+
                         <div className="flex items-center text-sm text-gray-500 mt-1">
                           <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
@@ -629,7 +644,7 @@ const WholesalerPage = () => {
                           </svg>
                           <span className="truncate">{product.city}</span>
                         </div>
-                        
+
                         <div className="flex items-center text-sm text-gray-500 mt-1">
                           <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
@@ -637,14 +652,21 @@ const WholesalerPage = () => {
                           <span>{product.countryCode} {product.mobileNo}</span>
                         </div>
                       </div>
-                      
-                      <div className="mt-4">
-                        <Button 
-                          variant="outline" 
-                          className="w-full"
+
+                      <div className="mt-4 flex gap-2">
+                        <Button
+                          variant="outline"
+                          className="flex-1"
                           onClick={() => handleEditProduct(product)}
                         >
                           Edit Product
+                        </Button>
+                        <Button
+                          variant="outline"
+                          className="flex-1"
+                          onClick={() => startVideoCall(product)}
+                        >
+                          Video Call
                         </Button>
                       </div>
                     </div>
@@ -656,6 +678,16 @@ const WholesalerPage = () => {
         </div>
       </main>
       <Footer />
+      {showVideoCall && (
+        <VideoCall
+          roomName={videoCallRoom}
+          onClose={() => setShowVideoCall(false)}
+          userInfo={{
+            displayName: user?.displayName || 'Wholesaler',
+            email: user?.email || ''
+          }}
+        />
+      )}
     </div>
   );
 };
